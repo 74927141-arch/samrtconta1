@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SmartConta · Simulador de IGV e Impuesto a la Renta</title>
+  <style>
+    :root{
+      /* Paleta clara empresarial */
+      --bg:#f6f8fb;
+      --card:#ffffff;
+      --muted:#475569;
+      --accent:#2563eb; /* azul */
+      --accent-2:#16a34a; /* verde */
+      --warn:#f59e0b; /* ámbar */
+      --danger:#dc2626; /* rojo */
+      --text:#0f172a; /* casi negro */
+      --text-strong:#0b1220;
+      --chip:#eef2ff;
+      --border:#e2e8f0;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+    }
+    header{
+      position:sticky;top:0;z-index:10;
+      background:#ffffffcc;backdrop-filter:blur(8px);
+      border-bottom:1px solid var(--border)
+    }
+    .wrap{max-width:1200px;margin:auto;padding:16px}
+    .title{display:flex;gap:12px;align-items:center}
+    .logo{
+      width:36px;height:36px;border-radius:9px;
+      background:conic-gradient(from 180deg at 50% 50%, var(--accent), var(--accent-2));
+      box-shadow:0 10px 30px rgba(37,99,235,.25)
+    }
+    h1{font-size:clamp(20px,2.8vw,28px);margin:0;font-weight:800;letter-spacing:.2px;color:var(--text-strong)}
+    h2{font-size:clamp(18px,2.3vw,24px);margin:0 0 8px 0;color:var(--text-strong)}
+    p{margin:6px 0 0 0;color:var(--muted)}
+
+    .grid{display:grid;gap:18px}
+    @media(min-width:1000px){.grid{grid-template-columns:1.1fr .9fr}}
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:16px;
+      box-shadow:0 6px 24px rgba(15,23,42,.05)
+    }
+    .card h3{margin:0 0 12px 0;color:var(--text-strong)}
+
+    .video{position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:#f1f5f9}
+    iframe{width:100%;height:100%;border:0}
+
+    .section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+    .chip{
+      display:inline-flex;align-items:center;gap:8px;
+      background:var(--chip);border:1px solid var(--border);
+      border-radius:999px;padding:6px 10px;color:#334155;font-size:12px
+    }
+    .chip button{background:transparent;border:0;color:#334155;cursor:pointer}
+
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .field{flex:1 1 160px;display:flex;flex-direction:column;gap:6px}
+    label{font-size:12px;color:#334155}
+    input, select, button, textarea{font:inherit}
+    input[type="number"], input[type="text"], select{
+      background:#ffffff;border:1px solid var(--border);color:var(--text);
+      padding:10px 12px;border-radius:10px;outline:none
+    }
+    input[type="number"]:focus, select:focus{border-color:var(--accent)}
+    .btn{
+      background:var(--accent);color:#fff;border:0;border-radius:10px;
+      padding:10px 14px;font-weight:700;cursor:pointer;transition:.2s
+    }
+    .btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(37,99,235,.25)}
+    .btn.secondary{background:#ffffff;border:1px solid var(--border);color:#0f172a}
+    .btn.danger{background:var(--danger)}
+    .btn.warn{background:var(--warn);color:#111827}
+
+    table{width:100%;border-collapse:separate;border-spacing:0 8px}
+    thead th{font-size:12px;color:#334155;text-align:left;padding:0 10px}
+    tbody td{background:#ffffff;border:1px solid var(--border);padding:8px 10px}
+    tbody tr{border-radius:10px;overflow:hidden}
+    tbody td:first-child{border-radius:10px 0 0 10px}
+    tbody td:last-child{border-radius:0 10px 10px 0}
+
+    .totals{display:grid;gap:12px;margin-top:10px}
+    @media(min-width:700px){.totals{grid-template-columns:repeat(3,1fr)}}
+    .kpi{
+      background:linear-gradient(180deg,#ffffff,#f8fafc);
+      border:1px solid var(--border);border-radius:14px;padding:14px
+    }
+    .kpi h4{margin:0 0 6px 0;color:#334155;font-weight:600}
+    .kpi .val{font-weight:900;color:#111827;font-size:clamp(18px,3vw,24px)}
+    .mut{color:#64748b;font-size:12px}
+
+    footer{margin:30px 0 60px;color:#64748b;text-align:center}
+    .small{font-size:12px}
+
+    .table-compact thead th{padding:0 8px}
+    .table-compact tbody td{padding:6px 8px}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <div class="wrap title">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>SmartConta — Simulador de IGV e Impuesto a la Renta</h1>
+        <p>Ingrese totales (con IGV). Ajuste % de IGV por sección y % de Renta. El sistema calcula tributos y utilidad (ventas con IGV – compras con IGV – IGV – IR – otros gastos). Registre mes a mes y vea el acumulado anual.</p>
+      </div>
+      <div style="margin-left:auto">
+        <button class="btn secondary" onclick="downloadPage()">Descargar esta página (SmartConta.html)</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap grid" id="app">
+    <!-- Columna izquierda: video -->
+    <section class="card">
+      <div class="section-title">
+        <h2>Video explicativo del flujo documentario contable</h2>
+        <span class="chip">El video es fijo (no editable en la página)</span>
+      </div>
+      <div class="video" id="videoWrap">
+        <!-- Video fijo (si no hay internet, se mostrará un aviso) -->
+        <iframe id="videoFrame" src="https://www.youtube.com/embed/urhSDBpzw6Y" title="Video del proyecto" allowfullscreen></iframe>
+      </div>
+      <p class="mut" style="margin-top:8px">Si no hay conexión a internet, se mostrará un aviso en este espacio.</p>
+    </section>
+
+    <!-- Impuesto a la Renta -->
+    <section class="card">
+      <div class="section-title">
+        <h2>Impuesto a la Renta</h2>
+        <span class="chip">Atajo: <button class="btn secondary" onclick="setIR(1.5)">RER 1.5%</button></span>
+      </div>
+      <div class="row">
+        <div class="field" style="max-width:260px">
+          <label for="irPct">Porcentaje IR (%)</label>
+          <input id="irPct" type="number" step="0.01" value="1.5" />
+        </div>
+      </div>
+      <p class="mut" style="margin-top:8px">Nota: Simulador educativo. Ajuste la tasa según su régimen.</p>
+    </section>
+
+    <!-- Ventas -->
+    <section class="card">
+      <div class="section-title">
+        <h2>Ventas gravadas</h2>
+        <div class="row">
+          <span class="chip">Totales CON IGV</span>
+          <button class="btn" onclick="addRow('ventasBody')">+ Agregar venta</button>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <div class="field" style="max-width:220px">
+          <label for="igvVentas">% IGV Ventas</label>
+          <input id="igvVentas" type="number" step="0.01" value="18" />
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Descripción</th>
+            <th style="width:160px">Total operación (S/)</th>
+            <th style="width:160px">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="ventasBody"></tbody>
+      </table>
+      <div class="totals">
+        <div class="kpi">
+          <h4>Total Ventas (base imponible)</h4>
+          <div class="val" id="tVentas">S/ 0.00</div>
+        </div>
+        <div class="kpi">
+          <h4>IGV Débito</h4>
+          <div class="val" id="tIGVdebito">S/ 0.00</div>
+        </div>
+        <div class="kpi">
+          <h4>Ventas (total con IGV)</h4>
+          <div class="val" id="tVentasIGV">S/ 0.00</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Compras -->
+    <section class="card">
+      <div class="section-title">
+        <h2>Compras gravadas</h2>
+        <div class="row">
+          <span class="chip">Totales CON IGV</span>
+          <button class="btn" onclick="addRow('comprasBody')">+ Agregar compra</button>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <div class="field" style="max-width:220px">
+          <label for="igvCompras">% IGV Compras</label>
+          <input id="igvCompras" type="number" step="0.01" value="18" />
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Descripción</th>
+            <th style="width:160px">Total operación (S/)</th>
+            <th style="width:160px">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="comprasBody"></tbody>
+      </table>
+      <div class="totals">
+        <div class="kpi">
+          <h4>Total Compras (base imponible)</h4>
+          <div class="val" id="tCompras">S/ 0.00</div>
+        </div>
+        <div class="kpi">
+          <h4>IGV Crédito</h4>
+          <div class="val" id="tIGVcredito">S/ 0.00</div>
+        </div>
+        <div class="kpi">
+          <h4>Compras (total con IGV)</h4>
+          <div class="val" id="tComprasIGV">S/ 0.00</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Resumen de tributos -->
+    <section class="card" style="grid-column:1/-1">
+      <div class="section-title">
+        <h2>Resumen de tributos</h2>
+        <span class="chip">Cálculo automático en tiempo real</span>
+      </div>
+      <div class="totals" style="grid-template-columns:repeat(4,1fr)">
+        <div class="kpi">
+          <h4>IGV a pagar</h4>
+          <div class="val" id="igvPagar">S/ 0.00</div>
+          <div class="mut">IGV débito – IGV crédito (mín. 0)</div>
+        </div>
+        <div class="kpi">
+          <h4>Base imponible para el impuesto a la renta</h4>
+          <div class="val" id="rentaImponible">S/ 0.00</div>
+          <div class="mut">Equivale a la base imponible de las ventas.</div>
+        </div>
+        <div class="kpi">
+          <h4>% Renta</h4>
+          <div class="val" id="rentaPct">1.50%</div>
+          <div class="mut">Modificable arriba</div>
+        </div>
+        <div class="kpi">
+          <h4>IR a pagar</h4>
+          <div class="val" id="irPagar">S/ 0.00</div>
+          <div class="mut">Base de ventas × % seleccionado</div>
+        </div>
+      </div>
+      <div class="totals" style="grid-template-columns:1fr">
+        <div class="kpi">
+          <h4>Total tributos a pagar (IGV + IR)</h4>
+          <div class="val" id="totalTributos">S/ 0.00</div>
+          <div class="mut">Verifique condiciones reales de su régimen.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Otros gastos mensuales -->
+    <section class="card" style="grid-column:1/-1">
+      <div class="section-title">
+        <h2>Otros gastos (mensuales)</h2>
+        <div class="row">
+          <span class="chip">Planilla, alquiler, servicios, etc.</span>
+          <button class="btn" onclick="addGasto()">+ Agregar gasto</button>
+        </div>
+      </div>
+      <table class="table-compact">
+        <thead>
+          <tr>
+            <th>Descripción</th>
+            <th style="width:160px">Monto (S/)</th>
+            <th style="width:160px">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="gastosBody"></tbody>
+      </table>
+      <div class="totals" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi">
+          <h4>Total Otros gastos</h4>
+          <div class="val" id="tGastos">S/ 0.00</div>
+        </div>
+        <div class="kpi">
+          <h4>Ganancia/Pérdida mensual</h4>
+          <div class="val" id="utilidadMes">S/ 0.00</div>
+          <div class="mut">Ventas con IGV – Compras con IGV – IGV – IR – Otros gastos</div>
+        </div>
+        <div class="kpi">
+          <h4>Mes & Año</h4>
+          <div class="row">
+            <select id="selMes" style="flex:1 1 120px">
+              <option value="0">Enero</option><option value="1">Febrero</option><option value="2">Marzo</option><option value="3">Abril</option>
+              <option value="4">Mayo</option><option value="5">Junio</option><option value="6">Julio</option><option value="7">Agosto</option>
+              <option value="8">Septiembre</option><option value="9">Octubre</option><option value="10">Noviembre</option><option value="11">Diciembre</option>
+            </select>
+            <input id="inpAnio" type="number" value="2025" style="flex:1 1 120px"/>
+            <button class="btn" onclick="guardarMes()">Guardar mes</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Registro anual y gráfico -->
+    <section class="card" style="grid-column:1/-1">
+      <div class="section-title">
+        <h2>Registro anual de ganancias/pérdidas</h2>
+        <span class="chip">Se guarda en su navegador (localStorage)</span>
+      </div>
+      <div class="row" style="align-items:flex-start">
+        <div style="flex:1 1 360px">
+          <canvas id="chart" height="140"></canvas>
+        </div>
+        <div style="flex:1 1 360px">
+          <table class="table-compact" style="width:100%">
+            <thead>
+              <tr><th>Mes</th><th>Resultado (S/)</th><th>Acumulado (S/)</th></tr>
+            </thead>
+            <tbody id="tablaAnual"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Backup de datos (exportar / importar) -->
+    <section class="card" style="grid-column:1/-1">
+      <div class="section-title">
+        <h2>Respaldo de información</h2>
+        <span class="chip">Exporta/Importa en JSON</span>
+      </div>
+      <div class="row">
+        <button class="btn" onclick="exportarJSON()">Exportar JSON</button>
+        <label class="btn secondary" for="importFile" style="cursor:pointer">Importar JSON</label>
+        <input id="importFile" type="file" accept="application/json" style="display:none" onchange="importarJSON(event)" />
+        <button class="btn danger" onclick="borrarTodo()">Borrar todo</button>
+      </div>
+      <p class="mut">El guardado automático usa este navegador (localStorage). Con “Exportar JSON” puedes respaldar y mover tus datos a otra computadora; con “Importar JSON” los restauras.</p>
+    </section>
+
+    <!-- Recomendación de gestión -->
+    <section class="card" style="grid-column:1/-1">
+      <div class="section-title">
+        <h2>Recomendación</h2>
+        <span class="chip">Criterios de gestión empresarial</span>
+      </div>
+      <div id="recomendacion" class="mut">Ingrese datos para ver recomendaciones.</div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <p class="small">© SmartConta · Demo educativa. Ingrese montos totales (con IGV). Ajuste % de IGV por sección y % IR. Los datos mensuales se guardan localmente en su navegador.</p>
+  </footer>
+
+  <template id="rowTemplate">
+    <tr>
+      <td>
+        <input type="text" placeholder="Descripción (p. ej., Venta mercaderías)" />
+      </td>
+      <td>
+        <input type="number" step="0.01" min="0" placeholder="0.00" />
+      </td>
+      <td>
+        <button class="btn secondary" onclick="dupRow(this)">Duplicar</button>
+        <button class="btn danger" onclick="delRow(this)">Eliminar</button>
+      </td>
+    </tr>
+  </template>
+
+  <template id="gastoTemplate">
+    <tr>
+      <td>
+        <input type="text" placeholder="Descripción (p. ej., Planilla)" />
+      </td>
+      <td>
+        <input type="number" step="0.01" min="0" placeholder="0.00" />
+      </td>
+      <td>
+        <button class="btn secondary" onclick="dupGasto(this)">Duplicar</button>
+        <button class="btn danger" onclick="delGasto(this)">Eliminar</button>
+      </td>
+    </tr>
+  </template>
+
+  <script>
+    const PEN = new Intl.NumberFormat('es-PE',{style:'currency',currency:'PEN'});
+
+    const ventasBody   = document.getElementById('ventasBody');
+    const comprasBody  = document.getElementById('comprasBody');
+    const rowTemplate  = document.getElementById('rowTemplate');
+
+    const gastosBody   = document.getElementById('gastosBody');
+    const gastoTemplate= document.getElementById('gastoTemplate');
+
+    // IGV por sección
+    const igvVentasInput  = document.getElementById('igvVentas');
+    const igvComprasInput = document.getElementById('igvCompras');
+
+    // IR editable
+    const irPctInput   = document.getElementById('irPct');
+
+    // Totales ventas
+    const tVentasEl    = document.getElementById('tVentas');
+    const tIGVdebitoEl = document.getElementById('tIGVdebito');
+    const tVentasIGVEl = document.getElementById('tVentasIGV');
+
+    // Totales compras
+    const tComprasEl    = document.getElementById('tCompras');
+    const tIGVcreditoEl = document.getElementById('tIGVcredito');
+    const tComprasIGVEl = document.getElementById('tComprasIGV');
+
+    // Resumen tributos
+    const igvPagarEl      = document.getElementById('igvPagar');
+    const rentaImponEl    = document.getElementById('rentaImponible');
+    const rentaPctEl      = document.getElementById('rentaPct');
+    const irPagarEl       = document.getElementById('irPagar');
+    const totalTributosEl = document.getElementById('totalTributos');
+
+    // Otros gastos & resultado
+    const tGastosEl    = document.getElementById('tGastos');
+    const utilidadMesEl= document.getElementById('utilidadMes');
+    const selMes       = document.getElementById('selMes');
+    const inpAnio      = document.getElementById('inpAnio');
+
+    // Recomendación
+    const recomEl = document.getElementById('recomendacion');
+
+    // Chart & tabla anual
+    const tablaAnual   = document.getElementById('tablaAnual');
+    let chart;
+
+    function addRow(targetId){
+      const tbody = document.getElementById(targetId);
+      const node = rowTemplate.content.cloneNode(true);
+      tbody.appendChild(node);
+      hookInputs();
+      compute();
+    }
+    function delRow(btn){ const tr = btn.closest('tr'); tr?.remove(); compute(); }
+    function dupRow(btn){ const tr = btn.closest('tr'); const clone = tr.cloneNode(true); tr.parentElement.insertBefore(clone, tr.nextSibling); hookInputs(); compute(); }
+
+    function addGasto(desc="", monto=""){
+      const node = gastoTemplate.content.cloneNode(true);
+      const tr = node.querySelector('tr');
+      tr.querySelector('td:nth-child(1) input').value = desc;
+      tr.querySelector('td:nth-child(2) input').value = monto;
+      gastosBody.appendChild(node);
+      hookInputs();
+      compute();
+    }
+    function delGasto(btn){ const tr = btn.closest('tr'); tr?.remove(); compute(); }
+    function dupGasto(btn){ const tr = btn.closest('tr'); const clone = tr.cloneNode(true); tr.parentElement.insertBefore(clone, tr.nextSibling); hookInputs(); compute(); }
+
+    function sumFromTbody(tbody){
+      let sum = 0;
+      [...tbody.querySelectorAll('tr')].forEach(tr=>{
+        const val = parseFloat(tr.querySelector('td:nth-child(2) input').value||'0');
+        sum += isNaN(val)?0:val;
+      });
+      return sum; // suma de TOTALES (con IGV)
+    }
+
+    function setIR(p){ irPctInput.value = p; compute(); }
+
+    function updateRecommendation({totalVentasConIGV, totalComprasConIGV, utilidad}){
+      let msg = '';
+      if(totalComprasConIGV > totalVentasConIGV){
+        msg += '⚠️ Compras mayores a ventas. Revise precios de venta, rotación de inventarios y estrategia comercial para recuperar margen. ';
+      }else{
+        msg += '✅ Ventas superan a compras. Mantenga el control de costos y considere mejorar el ticket promedio. ';
+      }
+      if(utilidad < 0){
+        msg += 'La utilidad es negativa: reduzca gastos operativos, renegocie compras o evalúe subir precios.';
+      }else if(utilidad < (0.05 * totalVentasConIGV)){
+        msg += 'Margen bajo: busque eficiencias (logística, proveedores) y priorice productos de mayor margen.';
+      }else{
+        msg += 'Buen desempeño: continúe con la estrategia y evalúe reinversión en marketing o mejora de procesos.';
+      }
+      recomEl.textContent = msg;
+    }
+
+    function compute(){
+      // Tasas IGV por sección (p. ej., 18 => 0.18)
+      const tasaIGV_V = (parseFloat(igvVentasInput.value)||0)/100;
+      const tasaIGV_C = (parseFloat(igvComprasInput.value)||0)/100;
+
+      // Sumas de totales (con IGV)
+      const totalVentasConIGV  = sumFromTbody(ventasBody);
+      const totalComprasConIGV = sumFromTbody(comprasBody);
+
+      // Derivar base e IGV desde total
+      const baseVentas   = totalVentasConIGV  / (1 + tasaIGV_V);
+      const igvDebito    = totalVentasConIGV  - baseVentas;
+
+      const baseCompras  = totalComprasConIGV / (1 + tasaIGV_C);
+      const igvCredito   = totalComprasConIGV - baseCompras;
+
+      // Renta imponible y renta (AJUSTE: base = base de ventas)
+      const rentaImponible = baseVentas;
+      const pctIR = Math.max(0, parseFloat(irPctInput.value)||0);
+      const irPagar = rentaImponible * (pctIR/100);
+
+      // IGV a pagar
+      const igvPagar = Math.max(0, igvDebito - igvCredito);
+
+      // Otros gastos
+      const otrosGastos = sumFromTbody(gastosBody);
+
+      // RESULTADO mensual (según pedido): usar TOTALES CON IGV
+      const utilidad = totalVentasConIGV - totalComprasConIGV - igvPagar - igvPagar - irPagar + igvPagar - otrosGastos; // keep structure; will simplify next line
+
+      // Simplify utilidad calculation accurately
+      const utilidadCalc = totalVentasConIGV - totalComprasConIGV - igvPagar - irPagar - otrosGastos;
+
+      // Totales UI
+      document.getElementById('tVentas').textContent     = PEN.format(baseVentas);
+      document.getElementById('tIGVdebito').textContent  = PEN.format(igvDebito);
+      document.getElementById('tVentasIGV').textContent  = PEN.format(totalVentasConIGV);
+
+      document.getElementById('tCompras').textContent    = PEN.format(baseCompras);
+      document.getElementById('tIGVcredito').textContent = PEN.format(igvCredito);
+      document.getElementById('tComprasIGV').textContent = PEN.format(totalComprasConIGV);
+
+      igvPagarEl.textContent    = PEN.format(igvPagar);
+      rentaImponEl.textContent  = PEN.format(rentaImponible);
+      rentaPctEl.textContent    = pctIR.toFixed(2) + '%';
+      irPagarEl.textContent     = PEN.format(irPagar);
+      totalTributosEl.textContent = PEN.format(igvPagar + irPagar);
+
+      tGastosEl.textContent     = PEN.format(otrosGastos);
+      utilidadMesEl.textContent = PEN.format(utilidadCalc);
+
+      updateRecommendation({totalVentasConIGV, totalComprasConIGV, utilidad: utilidadCalc});
+
+      return { baseVentas, baseCompras, totalVentasConIGV, totalComprasConIGV, igvPagar, irPagar, otrosGastos, utilidad: utilidadCalc };
+    }
+
+    function hookInputs(){
+      document.querySelectorAll('input, select').forEach(el=>{
+        el.oninput = compute; el.onchange = compute;
+      })
+    }
+
+    // ===== Registro anual =====
+    function keyYear(y){ return `presuweb_${y}`; }
+
+    function loadYear(y){
+      const raw = localStorage.getItem(keyYear(y));
+      if(!raw) return Array(12).fill(null);
+      try{ const arr = JSON.parse(raw); return Array.isArray(arr) ? (arr.concat(Array(12)).slice(0,12)) : Array(12).fill(null);}catch{ return Array(12).fill(null); }
+    }
+
+    function saveYear(y, arr){ localStorage.setItem(keyYear(y), JSON.stringify(arr)); }
+
+    function guardarMes(){
+      const y = parseInt(inpAnio.value)||new Date().getFullYear();
+      const m = parseInt(selMes.value)||0;
+      const { utilidad } = compute();
+      const arr = loadYear(y);
+      arr[m] = utilidad;
+      saveYear(y, arr);
+      renderYear(y);
+    }
+
+    function renderYear(y){
+      const arr = loadYear(y);
+      // Tabla y acumulado
+      tablaAnual.innerHTML='';
+      let acum = 0;
+      const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      arr.forEach((val, idx)=>{
+        if(val===null) return; // mostrar solo meses guardados
+        acum += val;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${meses[idx]}</td><td>${PEN.format(val)}</td><td>${PEN.format(acum)}</td>`;
+        tablaAnual.appendChild(tr);
+      });
+      // Chart
+      const data = arr.map(v=> v===null? 0 : v);
+      if(chart){ chart.destroy(); }
+      const ctx = document.getElementById('chart').getContext('2d');
+      chart = new Chart(ctx, {
+        type:'bar',
+        data:{
+          labels: meses,
+          datasets:[{ label:`Resultado mensual ${y}`, data, borderWidth:1 }]
+        },
+        options:{
+          responsive:true,
+          scales:{ y:{ beginAtZero:true } }
+        }
+      });
+    }
+
+    // ===== Backup (Exportar/Importar JSON) =====
+    function _getRows(tbody){
+      const out = [];
+      tbody.querySelectorAll('tr').forEach(tr=>{
+        const desc = tr.querySelector('td:nth-child(1) input')?.value?.trim() || '';
+        const val  = parseFloat(tr.querySelector('td:nth-child(2) input')?.value || '0') || 0;
+        if (desc !== '' || val !== 0) out.push({desc, monto: val});
+      });
+      return out;
+    }
+    function _setRows(tbody, template, arr){
+      tbody.innerHTML = '';
+      (arr || []).forEach(item=>{
+        const node = template.content.cloneNode(true);
+        const tr = node.querySelector('tr');
+        tr.querySelector('td:nth-child(1) input').value = item.desc || '';
+        tr.querySelector('td:nth-child(2) input').value = item.monto ?? 0;
+        tbody.appendChild(node);
+      });
+      if(!tbody.querySelector('tr')){
+        const node = template.content.cloneNode(true);
+        tbody.appendChild(node);
+      }
+    }
+    function exportarJSON(){
+      const data = {
+        tasas: {
+          igvVentas: parseFloat(igvVentasInput.value)||0,
+          igvCompras: parseFloat(igvComprasInput.value)||0,
+          irPct: parseFloat(irPctInput.value)||0
+        },
+        periodo: {
+          mes: parseInt(selMes.value)||0,
+          anio: parseInt(inpAnio.value)||new Date().getFullYear()
+        },
+        ventas: _getRows(ventasBody),
+        compras: _getRows(comprasBody),
+        gastos: _getRows(gastosBody),
+        anual: {}
+      };
+      Object.keys(localStorage).forEach(k=>{
+        const m = k.match(/^presuweb_(\d{4})$/);
+        if(m){
+          try{
+            const arr = JSON.parse(localStorage.getItem(k));
+            if(Array.isArray(arr)) data.anual[m[1]] = arr;
+          }catch{}
+        }
+      });
+      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const fecha = new Date().toISOString().slice(0,10);
+      a.download = `SmartConta_respaldo_${fecha}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    function importarJSON(evt){
+      const file = evt.target.files?.[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = e=>{
+        try{
+          const data = JSON.parse(e.target.result);
+          if(data?.tasas){
+            igvVentasInput.value  = data.tasas.igvVentas ?? 18;
+            igvComprasInput.value = data.tasas.igvCompras ?? 18;
+            irPctInput.value      = data.tasas.irPct ?? 1.5;
+          }
+          if(data?.periodo){
+            selMes.value = data.periodo.mes ?? 0;
+            inpAnio.value= data.periodo.anio ?? new Date().getFullYear();
+          }
+          _setRows(ventasBody, rowTemplate, data.ventas || []);
+          _setRows(comprasBody, rowTemplate, data.compras || []);
+          _setRows(gastosBody,  gastoTemplate, data.gastos  || []);
+          if(data?.anual && typeof data.anual === 'object'){
+            Object.entries(data.anual).forEach(([year, arr])=>{
+              localStorage.setItem(`presuweb_${year}`, JSON.stringify(arr));
+            });
+          }
+          hookInputs();
+          compute();
+          renderYear(inpAnio.value);
+          alert('Datos importados correctamente.');
+        }catch(err){
+          console.error(err);
+          alert('Archivo inválido. Verifique que sea un JSON exportado del simulador.');
+        }finally{
+          evt.target.value = '';
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+    }
+    function borrarTodo(){
+      if(!confirm('Esto eliminará todas las filas y los registros anuales guardados en este navegador. ¿Continuar?')) return;
+      Object.keys(localStorage).forEach(k=>{
+        if(/^presuweb_\d{4}$/.test(k)){ localStorage.removeItem(k); }
+      });
+      ventasBody.innerHTML=''; comprasBody.innerHTML=''; gastosBody.innerHTML='';
+      const now = new Date();
+      selMes.value = now.getMonth(); inpAnio.value = now.getFullYear();
+      igvVentasInput.value = 18; igvComprasInput.value = 18; irPctInput.value = 1.5;
+      addRow('ventasBody'); addRow('comprasBody');
+      addGasto('Planilla', '0'); addGasto('Alquiler del local', '0');
+      hookInputs(); compute(); renderYear(inpAnio.value);
+      alert('Reinicio completo.');
+    }
+
+    // ===== Offline: aviso si no hay internet para YouTube =====
+    function handleOnlineStatus(){
+      const isOnline = navigator.onLine;
+      const video = document.getElementById('videoFrame');
+      const wrap = document.getElementById('videoWrap');
+      if(!isOnline && video){
+        const aviso = document.createElement('div');
+        aviso.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;background:#f1f5f9;color:#334155;text-align:center;padding:16px';
+        aviso.textContent = 'Sin conexión: el video de YouTube no puede mostrarse. Conéctate a internet para verlo.';
+        wrap.replaceChild(aviso, video);
+      }
+    }
+    window.addEventListener('load', handleOnlineStatus);
+
+    // ===== Descargar copia de la página con nombre SmartConta.html =====
+    function downloadPage(){
+      const html = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;
+      const blob = new Blob([html], {type:'text/html'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'SmartConta.html';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    // Inicialización
+    function init(){
+      addRow('ventasBody');
+      addRow('comprasBody');
+      addGasto('Planilla', '0');
+      addGasto('Alquiler del local', '0');
+      hookInputs();
+      compute();
+      const now = new Date();
+      inpAnio.value = now.getFullYear();
+      selMes.value = now.getMonth();
+      renderYear(inpAnio.value);
+    }
+    init();
+  </script>
+</body>
+</html>
